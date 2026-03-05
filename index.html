@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chá de Casa Nova - Laura & Gabriel</title>
+    <!-- Tailwind CSS para o design responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React e Babel para a lógica da interface -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Ícones Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDKs (Modo Compatibilidade) -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .font-serif { font-family: 'Playfair Display', serif; }
+        
+        /* Animações suaves */
+        .fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        /* Barra de rolagem elegante */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f4f2eb; }
+        ::-webkit-scrollbar-thumb { background: #d1cec7; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #283c31; }
+    </style>
+</head>
+<body class="bg-[#f4f2eb] text-[#283c31]">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useMemo, useEffect } = React;
+
+        // --- CONFIGURAÇÕES DO AMBIENTE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAvf4FxpSDnc4-OOcnrErdOCAw10fNh9fs",
+            authDomain: "cha-de-casa-nova-b6169.firebaseapp.com",
+            projectId: "cha-de-casa-nova-b6169",
+            storageBucket: "cha-de-casa-nova-b6169.firebasestorage.app",
+            messagingSenderId: "298647711913",
+            appId: "1:298647711913:web:5fb0da2cf682cd92b779b8",
+            measurementId: "G-7EVLVLQM7M"
+        };
+
+        const FORMSPREE_ID = "xwvrewpp"; 
+        const appId = "cha-de-casa-nova-b6169";
+
+        // Inicializar Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Componente de Ícone Lucide
+        const Icon = ({ name, ...props }) => {
+            const [iconNode, setIconNode] = useState(null);
+            useEffect(() => {
+                if (window.lucide) {
+                    const icon = window.lucide.icons[name];
+                    if (icon) setIconNode(icon);
+                }
+            }, [name]);
+            
+            if (!iconNode) return <span className="w-6 h-6 inline-block bg-gray-200 rounded-full animate-pulse"></span>;
+            
+            return (
+                <svg
+                    {...props}
+                    width={props.size || 24}
+                    height={props.size || 24}
+                    fill={props.fill || "none"}
+                    stroke={props.stroke || "currentColor"}
+                    strokeWidth={props.strokeWidth || 2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    dangerouslySetInnerHTML={{ __html: iconNode.map(i => `<${i[0]} ${Object.entries(i[1]).map(([k,v]) => `${k}="${v}"`).join(' ')} />`).join('') }}
+                />
+            );
+        };
+
+        // Dados Iniciais dos Presentes
+        const INITIAL_GIFTS_DATA = [
+            // Itens com Redirecionamento para Lojas
+            { id: 'gift_new_1', name: 'Kit travesseiro Ortobom', icon: 'BedDouble', price: 163.20, link: 'https://www.magazineluiza.com.br/kit-travesseiro-04-pecas-percal-com-200-fios-ortobom/p/691375800/cm/tvsc/', isCashFund: false },
+            { id: 'gift_new_2', name: 'Lixeira Inox 15L', icon: 'Trash2', price: 78.99, link: 'https://www.mercadolivre.com.br/lixeira-inox-15l-pedal-tampa-antiodor-cozinha-banheiro-lhp-ecommerce-preto/p/MLB54513760', isCashFund: false },
+            { id: 'gift_new_3', name: 'Kit formas diversas', icon: 'Utensils', price: 78.90, link: 'https://www.mercadolivre.com.br/kit-de-assadeiras-antiaderentes-4-pecas-pizzabolopudim/up/MLBU3038640144', isCashFund: false },
+            { id: 'gift_new_4', name: 'Kit pegadores cozinha', icon: 'Utensils', price: 74.99, link: 'https://www.mercadolivre.com.br/kit-12-utensilios-para-cozinha-de-aco-inox-jogo-completo/up/MLBU3129491538', isCashFund: false },
+            { id: 'gift_new_5', name: 'Kit colheres de silicone', icon: 'CookingPot', price: 44.97, link: 'https://www.amazon.com.br/colheres-escumadeiras-espatulas-silicone-pe%C3%A7as/dp/B09LFN8HCR', isCashFund: false },
+            { id: 'gift_new_6', name: 'Triturador de alho manual', icon: 'Zap', price: 19.00, link: 'https://www.mercadolivre.com.br/processador-triturador-moedor-manual-de-alimentos-com-lminas-afiadas-picador-pratico-para-legumes-verduras-e-frutas/p/MLB41646401', isCashFund: false },
+            { id: 'gift_new_7', name: 'Cortador de legumes multifuncional', icon: 'Utensils', price: 39.60, link: 'https://www.mercadolivre.com.br/cortador-de-legumes-multifuncional-16-em-1-fatiador-ralador/up/MLBU3497640184', isCashFund: false },
+            { id: 'gift_new_8', name: 'Abridor de vinho elétrico', icon: 'Wine', price: 39.90, link: 'https://www.mercadolivre.com.br/abridor-de-vinho-eletrico-automatico-kit-completo-saca-rolhas-eletrico-automatico-portatil-preto-abridor-garrafa-vinho-rolha-cortica-casa-bar-adega-presente-profissional-premium/p/MLB51916010', isCashFund: false },
+            { id: 'gift_new_9', name: 'Açucareiro', icon: 'Coffee', price: 28.90, link: 'https://www.mercadolivre.com.br/acucareiro-em-aco-inox-com-tampa-de-vidro-e-colher-qualidade/p/MLB24655109', isCashFund: false },
+            { id: 'gift_new_10', name: 'Kit potes de molho', icon: 'Utensils', price: 28.99, link: 'https://www.mercadolivre.com.br/kit-6-ramekin-terramada-porcelana-77ml-redondo-branco-canelado/p/MLB24639760', isCashFund: false },
+            { id: 'gift_new_11', name: 'Varal de chão', icon: 'Shirt', price: 65.94, link: 'https://www.mercadolivre.com.br/varal-de-cho-epsilon-varal-de-roupas-3-andares-dobravel-grande-c-4-rodas-cor-preto-com-preto/p/MLB59338258', isCashFund: false },
+            { id: 'gift_new_12', name: 'Chaleira elétrica', icon: 'Coffee', price: 37.26, link: 'https://www.mercadolivre.com.br/unitermi-atacama-182f-prateado-127v/p/MLB13409957', isCashFund: false },
+            { id: 'gift_new_13', name: 'Kit lixeira banheiro', icon: 'Droplets', price: 61.99, link: 'https://www.mercadolivre.com.br/kit-lixeira-aco-inox-3-litros-1-escova-sanitaria-travel-max-cor-cinza/p/MLB26973177', isCashFund: false },
+            { id: 'gift_new_14', name: 'Kit tábuas de legumes', icon: 'Utensils', price: 24.60, link: 'https://www.mercadolivre.com.br/kit-2-tabua-de-corte-reforcada-cozinha-legumes-carnes-peixes/up/MLBU1742617826', isCashFund: false },
+            { id: 'gift_new_15', name: 'Kit saboneteria e aromatizador', icon: 'Droplets', price: 69.49, link: 'https://produto.mercadolivre.com.br/MLB-2663488871-kit-lavabo-luxo-c-vasinho-porta-saboneteira-e-aromatizador-_JM', isCashFund: false },
+            { id: 'gift_new_16', name: 'Panela de pressão elétrica', icon: 'Utensils', price: 249.00, link: 'https://www.mercadolivre.com.br/panela-de-presso-britnia-multifuncional-bpp01pi-/p/MLB19928345', isCashFund: false },
+            { id: 'gift_new_17', name: 'Jogo tapete de cozinha', icon: 'Home', price: 29.97, link: 'https://www.mercadolivre.com.br/naell-rei-das-mantas-tapete-3-pecas-165-cm-45-cm-caramelo/p/MLB61448212', isCashFund: false },
+
+            // Itens de Contribuição Direta (PIX / Cartão)
+            { id: 'gift_new_18', name: 'Kit 12 potes tempero', icon: 'Utensils', price: 70.00, isCashFund: true },
+            { id: 'gift_new_19', name: 'Microondas', icon: 'Zap', price: 480.00, isCashFund: true },
+            { id: 'gift_42', name: 'Air fryer', icon: 'Wind', price: 300.00, isCashFund: true },
+            { id: 'gift_43', name: 'Mixer', icon: 'Utensils', price: 120.00, isCashFund: true },
+            { id: 'gift_44', name: 'Guarda roupa', icon: 'Shirt', price: 2000.00, isCashFund: true },
+            { id: 'gift_41', name: 'Aspirador', icon: 'Wind', price: 150.00, isCashFund: true },
+            { id: 'gift_1', name: 'Máquina de Lavar', icon: 'Droplets', price: 2000.00, isCashFund: true },
+            { id: 'gift_2', name: 'Ar Condicionado', icon: 'Wind', price: 1800.00, isCashFund: true },
+            { id: 'gift_11', name: 'Mesa de Jantar', icon: 'Home', price: 1500.00, isCashFund: true },
+            { id: 'gift_13', name: 'Sofá', icon: 'Armchair', price: 1500.00, isCashFund: true },
+            { id: 'gift_15', name: 'TV', icon: 'Monitor', price: 2500.00, isCashFund: true },
+            { id: 'gift_17', name: 'Geladeira', icon: 'Wind', price: 3000.00, isCashFund: true },
+            
+            // Outros itens base
+            { id: 'gift_18', name: 'Jogo de taças', icon: 'Wine', price: 89.91, link: 'https://www.amazon.com.br/dp/B00A8G2OIM', isCashFund: false },
+            { id: 'gift_20', name: 'Liquidificador', icon: 'Wind', price: 173.85, link: 'https://www.magazineluiza.com.br/liquidificador-mondial-turbo-glass-l-1400-gi-copo-de-vidro-12-velocidades-1400w-preto-inox/p/237634000/ep/liqu/', isCashFund: false },
+            { id: 'gift_22', name: 'Jogo de Potes de Vidro', icon: 'Utensils', price: 85.26, link: 'https://www.magazineluiza.com.br/jogo-de-potes-de-vidro-hermetico-brinox-com-tampa-redondo-ekko-7-pecas/p/238409400/ud/poud/', isCashFund: false },
+            { id: 'gift_28', name: 'Jogo de Panelas Brinox', icon: 'Utensils', price: 549.99, link: 'https://www.brinox.com.br/jogo-de-panelas-brinox-antiaderente-ceramic-life-7-pecas-easy-preto_4789110-1-4789110/p', isCashFund: false }
+        ];
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('home');
+            const [gifts, setGifts] = useState(INITIAL_GIFTS_DATA);
+            const [sortOrder, setSortOrder] = useState('default');
+            const [searchQuery, setSearchQuery] = useState('');
+            const [selectedGift, setSelectedGift] = useState(null);
+            const [gifterName, setGifterName] = useState('');
+            const [user, setUser] = useState(null);
+            const [isSyncing, setIsSyncing] = useState(true);
+            const [message, setMessage] = useState({ show: false, text: '', type: 'success' });
+            const [rsvpForm, setRsvpForm] = useState({ name: '', companions: 0, status: 'yes' });
+            const contentRef = useRef(null);
+
+            // --- FIREBASE: SINCRONIZAÇÃO EM TEMPO REAL ---
+            useEffect(() => {
+                const initFirebase = async () => {
+                    try {
+                        const cred = await auth.signInAnonymously();
+                        setUser(cred.user);
+
+                        const claimsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('presentes_v2');
+                        
+                        const unsubscribe = claimsRef.onSnapshot((snapshot) => {
+                            const claims = {};
+                            snapshot.forEach(doc => { 
+                                claims[doc.id] = doc.data().claimedBy; 
+                            });
+                            
+                            setGifts(prev => prev.map(item => ({
+                                ...item,
+                                claimedBy: claims[item.id] || null
+                            })));
+                            setIsSyncing(false);
+                        }, (err) => {
+                            console.error("Erro Firestore:", err);
+                        });
+
+                        return () => unsubscribe();
+                    } catch (e) {
+                        console.error("Erro ao iniciar Firebase:", e);
+                    }
+                };
+
+                initFirebase();
+            }, []);
+
+            const sortedGifts = useMemo(() => {
+                let filtered = gifts.filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase()));
+                if (sortOrder === 'price-asc') return [...filtered].sort((a, b) => a.price - b.price);
+                if (sortOrder === 'price-desc') return [...filtered].sort((a, b) => b.price - a.price);
+                return filtered;
+            }, [gifts, sortOrder, searchQuery]);
+
+            const showMessage = (text, type = 'success') => {
+                setMessage({ show: true, text, type });
+                setTimeout(() => setMessage({ show: false, text: '', type: 'success' }), 5000);
+            };
+
+            const handleNavigateAndScroll = (tab) => {
+                setActiveTab(tab);
+                contentRef.current?.scrollIntoView({ behavior: 'smooth' });
+            };
+
+            const handleClaimGift = async (e) => {
+                e.preventDefault();
+                if (!gifterName.trim()) return showMessage('Por favor, informe o seu nome.', 'error');
+                if (!user) return showMessage('Aguardando conexão com o servidor...', 'error');
+
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('presentes_v2')
+                        .doc(selectedGift.id).set({ 
+                            claimedBy: gifterName, 
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp() 
+                        });
+
+                    // Notificação via Formspree
+                    fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            _subject: "🎁 Novo Presente Selecionado!",
+                            Convidado: gifterName,
+                            Item: selectedGift.name,
+                            Valor: selectedGift.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        })
+                    });
+
+                    const link = selectedGift.link;
+                    setSelectedGift(null);
+                    setGifterName('');
+                    
+                    if (link) {
+                        showMessage('Muito obrigado! Abrindo a loja... ❤️');
+                        setTimeout(() => window.open(link, '_blank'), 1500);
+                    } else {
+                        showMessage('Escolha salva com sucesso! ❤️');
+                    }
+                } catch (error) {
+                    console.error("Erro ao gravar:", error);
+                    showMessage('Erro ao salvar. Tente novamente.', 'error');
+                }
+            };
+
+            const handleRsvpSubmit = async (e) => {
+                e.preventDefault();
+                if (!rsvpForm.name.trim()) return showMessage('Informe o seu nome.', 'error');
+
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('rsvp')
+                        .add({ ...rsvpForm, timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+
+                    fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            _subject: "✅ Confirmação de Presença!",
+                            Nome: rsvpForm.name,
+                            Comparecer: rsvpForm.status === 'yes' ? 'Sim' : 'Não',
+                            Acompanhantes: rsvpForm.companions
+                        })
+                    });
+
+                    showMessage(rsvpForm.status === 'yes' ? 'Presença confirmada! ❤️' : 'Recebido. Sentiremos a sua falta! ❤️');
+                    setRsvpForm({ name: '', companions: 0, status: 'yes' });
+                } catch (e) { showMessage('Erro ao enviar confirmação.', 'error'); }
+            };
+
+            const handleCopyPix = () => {
+                const el = document.createElement('textarea');
+                el.value = "071.750.771-81";
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                showMessage('Chave PIX copiada!');
+            };
+
+            return (
+                <div className="min-h-screen bg-[#f4f2eb] text-[#283c31] pb-20">
+                    {message.show && (
+                        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-2xl transition-all border ${message.type === 'error' ? 'bg-red-600 text-white' : 'bg-[#283c31] text-white'}`}>
+                            {message.text}
+                        </div>
+                    )}
+
+                    {/* Hero Section */}
+                    <header className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden px-4 text-center">
+                        <div className="absolute top-12 left-10 w-40 h-40 bg-[#e6e2d6] rounded-full opacity-60 blur-sm"></div>
+                        <div className="absolute bottom-24 right-12 w-64 h-64 bg-[#e6e2d6] rounded-full opacity-60 blur-sm"></div>
+                        <div className="relative z-10 max-w-3xl mx-auto fade-in">
+                            <div className="w-16 h-16 bg-[#e6e2d6] rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-sm">
+                                <Icon name="Home" stroke="#283c31" />
+                            </div>
+                            <p className="uppercase tracking-[0.3em] text-xs text-[#8a9289] mb-4 font-medium text-balance">Você está convidado para o</p>
+                            <h1 className="text-5xl md:text-7xl font-serif mb-6 leading-tight">Chá de Casa Nova</h1>
+                            <div className="flex items-center justify-center gap-4 mb-6 w-full max-w-[200px] mx-auto text-balance">
+                                <div className="h-px bg-[#d1cec7] flex-1"></div>
+                                <Icon name="Heart" size={16} fill="#a5aba6" stroke="none" />
+                                <div className="h-px bg-[#d1cec7] flex-1"></div>
+                            </div>
+                            <h2 className="text-4xl md:text-5xl font-serif mb-8 text-[#283c31]"> Laura <span className="text-[#a5aba6] font-light mx-1">&</span> Gabriel </h2>
+                            <button onClick={() => handleNavigateAndScroll('gifts')} className="bg-[#283c31] text-white px-10 py-4 rounded-full hover:bg-[#1a2720] transition-all font-medium shadow-md">Ver Lista de Presentes</button>
+                        </div>
+                    </header>
+
+                    {/* Navegação de Abas */}
+                    <div ref={contentRef} className="bg-white shadow-sm sticky top-0 z-40 border-b border-[#e6e2d6]">
+                        <div className="max-w-4xl mx-auto px-4 flex justify-center space-x-2 md:space-x-8 text-center">
+                            {['home', 'gifts', 'rsvp'].map(tab => (
+                                <button key={tab} onClick={() => setActiveTab(tab)} className={`flex items-center space-x-2 py-4 px-3 md:px-6 border-b-2 transition-colors ${activeTab === tab ? 'border-[#283c31] text-[#283c31]' : 'border-transparent text-[#8a9289] hover:text-[#283c31]'}`}>
+                                    <Icon name={tab === 'home' ? 'Home' : tab === 'gifts' ? 'Gift' : 'Users'} size={20} />
+                                    <span className="hidden md:inline font-medium uppercase tracking-wider text-xs">{tab === 'home' ? 'O Evento' : tab === 'gifts' ? 'Presentes' : 'Presença'}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <main className="max-w-7xl mx-auto px-4 py-12">
+                        {/* CONTEÚDO: O EVENTO */}
+                        {activeTab === 'home' && (
+                            <div className="fade-in text-center">
+                                <div className="bg-white rounded-3xl shadow-sm border border-[#e6e2d6] p-8 md:p-16 max-w-3xl mx-auto">
+                                    <h2 className="text-3xl font-serif mb-12 uppercase tracking-wide text-center">Quando e onde?</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
+                                        <div className="space-y-4 flex flex-col items-center">
+                                            <Icon name="Calendar" size={32} stroke="#283c31" className="opacity-70" />
+                                            <h3 className="font-bold uppercase tracking-widest text-xs">Data</h3>
+                                            <p className="text-[#6e7771]">Sábado<br/>11 de Abril de 2026</p>
+                                        </div>
+                                        <div className="space-y-4 flex flex-col items-center">
+                                            <Icon name="Clock" size={32} stroke="#283c31" className="opacity-70" />
+                                            <h3 className="font-bold uppercase tracking-widest text-xs">Horário</h3>
+                                            <p className="text-[#6e7771]">A partir das 12:00h</p>
+                                        </div>
+                                        <div className="space-y-4 flex flex-col items-center">
+                                            <Icon name="MapPin" size={32} stroke="#283c31" className="opacity-70" />
+                                            <h3 className="font-bold uppercase tracking-widest text-xs">Local</h3>
+                                            <p className="text-[#6e7771]">Jooy Wonder<br/><span className="text-sm">Rua Audite Da Silva Pavão, 620<br/>Vila Planalto</span></p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-12 pt-8 border-t border-[#f4f2eb]">
+                                        <p className="text-[#6e7771] italic text-sm text-center">Esperamos por você no salão de festas</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CONTEÚDO: PRESENTES */}
+                        {activeTab === 'gifts' && (
+                            <div className="fade-in">
+                                <div className="text-center mb-10">
+                                    <h2 className="text-3xl font-serif mb-4 uppercase tracking-wide">Lista de Presentes</h2>
+                                    <p className="text-[#6e7771] max-w-2xl mx-auto mb-10 font-light px-4">Os itens já presenteados ficam marcados automaticamente. Você pode filtrar ou pesquisar itens abaixo.</p>
+                                    
+                                    <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-12 max-w-2xl mx-auto px-4">
+                                        <div className="relative w-full md:flex-1">
+                                            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none"><Icon name="Search" size={16} stroke="#8a9289" /></div>
+                                            <input type="text" placeholder="Pesquisar presente ou móvel..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-[#e6e2d6] rounded-2xl shadow-sm text-sm outline-none focus:ring-1 focus:ring-[#283c31]" />
+                                        </div>
+                                        <div className="flex items-center gap-2 px-5 py-3 bg-white border border-[#e6e2d6] rounded-2xl shadow-sm text-sm text-[#6e7771] w-full md:w-auto">
+                                            <Icon name="ArrowUpDown" size={16} stroke="#283c31" />
+                                            <select value={sortOrder} onChange={(e)=>setSortOrder(e.target.value)} className="bg-transparent border-none focus:ring-0 text-[#283c31] font-bold cursor-pointer outline-none ml-1">
+                                                <option value="default">Sugestão</option>
+                                                <option value="price-asc">Menor preço</option>
+                                                <option value="price-desc">Maior preço</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {isSyncing ? (
+                                    <div className="py-20 text-center"><p className="animate-pulse text-[#8a9289]">Sincronizando com a nuvem...</p></div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 px-4 text-center">
+                                        {sortedGifts.map(gift => (
+                                            <div key={gift.id} className={`bg-white rounded-3xl shadow-sm border p-8 flex flex-col items-center text-center transition-all ${gift.claimedBy ? 'opacity-60 bg-[#f9f9f9]' : 'hover:shadow-md hover:-translate-y-1'}`}>
+                                                <div className="w-14 h-14 bg-[#f4f2eb] rounded-full flex items-center justify-center mb-6">
+                                                    <Icon name={gift.icon} size={24} stroke="#283c31" strokeWidth={1.5} />
+                                                </div>
+                                                <h3 className="font-semibold text-[#283c31] mb-2 min-h-[48px] flex items-center justify-center text-center">{gift.name}</h3>
+                                                <p className="text-[#8a9289] font-serif text-lg mb-6">
+                                                    {gift.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </p>
+                                                <div className="mt-auto w-full">
+                                                    {gift.claimedBy ? (
+                                                        <div className="text-[10px] font-bold text-[#8a9289] bg-[#f4f2eb] py-3 rounded-xl flex items-center justify-center gap-2 uppercase tracking-wide border border-[#e6e2d6] text-center">
+                                                            <Icon name="Check" size={14} stroke="#a5aba6" /> Oferecido por {gift.claimedBy}
+                                                        </div>
+                                                    ) : (
+                                                        <button onClick={() => setSelectedGift(gift)} className="w-full bg-[#283c31] text-white text-[10px] font-bold py-3.5 rounded-xl hover:bg-[#1a2720] transition-colors flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm">
+                                                            <Icon name="Gift" size={14} stroke="white" />
+                                                            Presentear
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="mt-20 text-center bg-white rounded-[2.5rem] p-12 border border-[#e6e2d6] shadow-sm max-w-3xl mx-auto mx-4 text-center">
+                                    <p className="uppercase tracking-[0.1em] text-[10px] text-[#8a9289] mb-4 font-bold text-center">Para quem quiser contribuir de outra maneira:</p>
+                                    <h3 className="text-3xl font-serif text-[#283c31] mb-8 text-center">Presente em dinheiro</h3>
+                                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                                        <button onClick={handleCopyPix} className="w-full sm:flex-1 flex items-center justify-center gap-3 border-2 border-[#283c31] text-[#283c31] py-4 rounded-2xl hover:bg-[#f4f2eb] transition-all font-bold uppercase tracking-widest text-xs text-balance">
+                                            <Icon name="Copy" size={18} /> Copiar Chave PIX
+                                        </button>
+                                        <a href="https://link.mercadopago.com.br/chadecasanovalg" target="_blank" className="w-full sm:flex-1 flex items-center justify-center gap-3 bg-[#283c31] text-white py-4 rounded-2xl hover:bg-[#1a2720] transition-all font-bold uppercase tracking-widest text-xs shadow-md">
+                                            <Icon name="CreditCard" size={18} /> Cartão de Crédito
+                                        </a>
+                                    </div>
+                                    <p className="text-[10px] text-[#a5aba6] mt-8 uppercase tracking-widest text-center">Chave PIX: 071.750.771-81 • Laura e Gabriel</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CONTEÚDO: RSVP */}
+                        {activeTab === 'rsvp' && (
+                            <div className="max-w-xl mx-auto fade-in px-4">
+                                <div className="bg-white rounded-3xl shadow-sm border border-[#e6e2d6] p-8 md:p-12">
+                                    <h2 className="text-3xl font-serif mb-2 uppercase tracking-wide text-center">Confirmar Presença</h2>
+                                    <p className="text-[#6e7771] font-light text-center mb-10 text-balance">Sua presença é importante nessa data</p>
+                                    <form onSubmit={handleRsvpSubmit} className="space-y-6">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-[#283c31] uppercase tracking-widest mb-3 text-left">Nome Completo</label>
+                                            <input type="text" required value={rsvpForm.name} onChange={(e)=>setRsvpForm({...rsvpForm, name: e.target.value})} className="w-full px-5 py-4 rounded-2xl border border-[#e6e2d6] focus:ring-1 focus:ring-[#283c31] outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-[#283c31] uppercase tracking-widest mb-3 text-left">Você comparecerá?</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <button type="button" onClick={()=>setRsvpForm({...rsvpForm, status: 'yes'})} className={`py-4 rounded-2xl border text-sm font-bold transition-all ${rsvpForm.status === 'yes' ? 'bg-[#283c31] text-white border-[#283c31]' : 'border-[#e6e2d6] text-[#8a9289]'}`}>Sim</button>
+                                                <button type="button" onClick={()=>setRsvpForm({...rsvpForm, status: 'no'})} className={`py-4 rounded-2xl border text-sm font-bold transition-all ${rsvpForm.status === 'no' ? 'bg-[#8a9289] text-white border-[#8a9289]' : 'border-[#e6e2d6] text-[#8a9289]'}`}>Não poderei</button>
+                                            </div>
+                                        </div>
+                                        {rsvpForm.status === 'yes' && (
+                                            <div className="fade-in">
+                                                <label className="block text-[10px] font-bold text-[#283c31] uppercase tracking-widest mb-3 text-left">Nº de Acompanhantes</label>
+                                                <input type="number" min="0" value={rsvpForm.companions} onChange={(e)=>setRsvpForm({...rsvpForm, companions: e.target.value})} className="w-full px-5 py-4 rounded-2xl border border-[#e6e2d6] focus:ring-1 focus:ring-[#283c31] outline-none" />
+                                            </div>
+                                        )}
+                                        <button type="submit" className="w-full bg-[#283c31] text-white py-5 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-md">Confirmar Presença</button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Modal de Ação para Presente */}
+                    {selectedGift && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 fade-in">
+                            <div className="bg-white rounded-[2.5rem] p-8 md:p-12 max-w-md w-full shadow-2xl">
+                                <h3 className="text-2xl font-serif text-[#283c31] text-center mb-2 uppercase tracking-wide">Presentear</h3>
+                                <p className="text-[#6e7771] text-center text-sm mb-8 px-4 text-balance">Você está escolhendo o item: <br/><strong>{selectedGift.name}</strong></p>
+                                
+                                <div className="bg-[#f9f8f4] border border-[#e6e2d6] rounded-3xl p-6 mb-8 text-center flex flex-col items-center">
+                                    <p className="text-[10px] text-[#8a9289] uppercase tracking-widest mb-1 font-bold text-center">Valor Sugerido</p>
+                                    <p className="text-3xl font-serif text-[#283c31] mb-8 text-center">{selectedGift.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                                    
+                                    {selectedGift.isCashFund ? (
+                                        <div className="space-y-3 w-full text-left">
+                                            <button onClick={handleCopyPix} className="w-full flex items-center justify-between bg-white p-4 rounded-2xl border border-[#e6e2d6] hover:border-[#283c31] transition-colors group">
+                                                <div className="flex items-center gap-3">
+                                                    <Icon name="QrCode" size={20} stroke="#283c31" />
+                                                    <span className="text-xs font-bold text-[#283c31] uppercase tracking-wider text-balance">Copiar Chave PIX</span>
+                                                </div>
+                                                <Icon name="Copy" size={18} stroke="#a5aba6" />
+                                            </button>
+                                            <a href="https://link.mercadopago.com.br/chadecasanovalg" target="_blank" className="w-full flex items-center justify-between bg-[#283c31] p-4 rounded-2xl text-white hover:bg-[#1a2720] transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <Icon name="Heart" size={20} fill="white" stroke="none" />
+                                                    <span className="text-xs font-bold uppercase tracking-wider">Pagar com Cartão</span>
+                                                </div>
+                                                <Icon name="ExternalLink" size={18} stroke="rgba(255,255,255,0.5)" />
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 text-xs text-[#283c31] bg-white rounded-2xl border border-[#e6e2d6] font-medium leading-relaxed italic text-center text-balance">
+                                            Ao confirmar, o item ficará reservado no seu nome para que ninguém mais o possa escolher! ❤️
+                                        </div>
+                                    )}
+                                </div>
+
+                                <form onSubmit={handleClaimGift} className="space-y-6">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-[#283c31] uppercase tracking-widest mb-3 text-left">Seu nome para agradecermos</label>
+                                        <input type="text" required value={gifterName} onChange={(e)=>setGifterName(e.target.value)} className="w-full px-5 py-4 rounded-2xl border border-[#e6e2d6] focus:ring-1 focus:ring-[#283c31] outline-none" placeholder="Ex: Maria Silva" />
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <button type="button" onClick={()=>setSelectedGift(null)} className="flex-1 py-4 text-xs font-bold text-[#8a9289] uppercase tracking-widest">Cancelar</button>
+                                        <button type="submit" className="flex-1 bg-[#283c31] text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-md">Confirmar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Navegação Mobile */}
+                    <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-[#e6e2d6] flex justify-around p-3 z-40 pb-safe shadow-lg text-center">
+                        <button onClick={()=>handleNavigateAndScroll('home')} className={`flex flex-col items-center gap-1 ${activeTab==='home'?'text-[#283c31]':'text-[#a5aba6]'}`}>
+                            <Icon name="Home" size={20} /><span className="text-[10px] font-bold uppercase tracking-tighter">Evento</span>
+                        </button>
+                        <button onClick={()=>handleNavigateAndScroll('gifts')} className={`flex flex-col items-center gap-1 ${activeTab==='gifts'?'text-[#283c31]':'text-[#a5aba6]'}`}>
+                            <Icon name="Gift" size={20} /><span className="text-[10px] font-bold uppercase tracking-tighter">Presentes</span>
+                        </button>
+                        <button onClick={()=>handleNavigateAndScroll('rsvp')} className={`flex flex-col items-center gap-1 ${activeTab==='rsvp'?'text-[#283c31]':'text-[#a5aba6]'}`}>
+                            <Icon name="Users" size={20} /><span className="text-[10px] font-bold uppercase tracking-tighter">Presença</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
